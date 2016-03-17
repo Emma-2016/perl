@@ -15,7 +15,6 @@ while (<IN>)
 	foreach $_(@items)
 	{
 		if ($_=~s/^id:\s+//){$id=$_;}
-		if ($_=~s/^name:\s+//){$name=$_;}
 		if (($_=~s/^is_a:\s+//) and ($_=~s/\s+!.+//)){$parentID.=$_." ! ";}
 	}
 	$parentID=~s/\s+!\s+$//;
