@@ -1,1 +1,1 @@
-Perl scripts I write for work.
+Perl scripts wrote for work.
