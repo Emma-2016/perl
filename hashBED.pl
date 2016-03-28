@@ -7,8 +7,8 @@ use Data::Dumper;
 
 my $samtools="path/to/samtools";
 my ($region, $bam, $RefCCDS, $outDir, $help);
-my ($BestOff, $SecBestOff) = (15, 5);
-my $flank = 200;
+my ($BestOff, $SecBestOff) = (15, 5); #alignment score assigned by BWA
+my $flank = 200;  #length of flank region
 
 GetOptions(
   "flank:i" => \$flank,
@@ -20,7 +20,7 @@ GetOptions(
   "help!" => \$help
 );
 
-die `pod2text $0` if ($help or !$region or !$bam or !$outDir);  #pod2text if to print out description
+die `pod2text $0` if ($help or !$region or !$bam or !$outDir);  #pod2text is to print out description
 my $chrs = basename $region;
 $chrs =~ s/\.bed// if $chr =~ /\.bed/;
 
@@ -35,13 +35,13 @@ my $FRDepthcntFile = "$outDir/$chr\_FRDepthCnt.stat";
 my $CumDepthFile = "$outDir/$chr\_CumDepth.stat";
 
 
-open RG, $region or die $!; #Input is chr*.bed;
-my (%TR, %FR)=((),());
+open RG, $region or die $!;
+my (%TR, %FR) = ((),());
 while (<RG>)
 {
   chomp;
-  my ($start, $end) = (split /[:-\t]/)[1,2];  #nice! put the char into [] instead of "|";
-  $TR{$_} = 0 foreach ($start..$end); #If there is only one statement put it one line;
+  my ($start, $end) = (split /[:-\t]/)[1,2];  #put the char into [] instead of "|";
+  $TR{$_} = 0 foreach ($start..$end);
 }
 seek (RG, 0, 0);
 
@@ -76,8 +76,8 @@ if ($RefCCDS) #chromosome ref gene file
     next if $lable ne "CDS";
     foreach ($start..$end)
     {
-      $TRCCDS[$_]=0;
-      $ReadCCDS[$_]=0;
+      $TRCCDS[$_] = 0;
+      $ReadCCDS[$_] = 0;  #CCDS covered by sequenced reads
       $TRCCDS[$_]++ if (exists $TRpos{$_}); #whether the CCDS is covered by bed;
     }
   }
@@ -94,7 +94,7 @@ my ($MissNum, $GCBase) = (0, 0);
 while (<IN>)
 {
   chomp;
-  ($start,$cigar,$ReadSeq) = (split /\t/)[3,5,9];
+  ($start, $cigar, $ReadSeq) = (split /\t/)[3, 5, 9];
   my ($best, $SecBest) = (0, 0);
   $best = $1 if (/AS:i:(\d+)/);
   $SecBest = $1 if (/XS:i:(\d+)/;
@@ -184,7 +184,7 @@ if ($RefCCDS)
     my ($start, $end, $lable, $express) = (split /\t/)[1,2,4,6];
     next if ($lable ne 'CDS');
     my ($ProbeCoved, $ReadCoved, $ReadBase) = (0, 0, 0);
-    my $length = $end - $start + 1;
+    my $length = $end - $start + 1; #here may be wrong;
     foreach my $pos ($start .. $end)
     {
       $ProbeCoved++ if ($TRCCDS{$pos});
