@@ -5,7 +5,7 @@ use File::Basename qw(basename dirname);
 use Getopt::Long;
 use Data::Dumper;
 
-my $samtools="path/to/samtools";
+my $samtools = "path/to/samtools";
 my ($region, $bam, $RefCCDS, $outDir, $help);
 my ($BestOff, $SecBestOff) = (15, 5); #alignment score assigned by BWA
 my $flank = 200;  #length of flank region
@@ -78,7 +78,7 @@ if ($RefCCDS) #chromosome ref gene file
     {
       $TRCCDS[$_] = 0;
       $ReadCCDS[$_] = 0;  #CCDS covered by sequenced reads
-      $TRCCDS[$_]++ if (exists $TRpos{$_}); #whether the CCDS is covered by bed;
+      $TRCCDS[$_]++ if (exists $TRpos{$_}); #whether the CCDS is covered by bed; #TRCCDS[$_] = 1
     }
   }
   close CCDS;
@@ -99,7 +99,7 @@ while (<IN>)
   $best = $1 if (/AS:i:(\d+)/);
   $SecBest = $1 if (/XS:i:(\d+)/;
   $MapTimes = 1 if ($best >= $BestOff and $SecBest < $SecBestOff);
-  $miss = $1 =~tr/ATCG/ATCG/ if (/MD:Z:(\w+)/);
+  $miss = $1 =~tr/ATCG/ATCG/ if (/MD:Z:(\w+)/); #what if it is deletion or insertion?
   $MapLen = length $ReadSeq;
   next if $cigar=~/[IDS]/;
   
@@ -110,7 +110,7 @@ while (<IN>)
   {
     $UReadCnt++;
     $Ubase += $MapLen;
-    for my $p ($start .. ($start+$MapLen-1))
+    for my $p ($start .. ($start+$MapLen-1))  #the start is 0-based; bed file is also 0-based, but gff may be not. !!
     {
       if (exists $TRpos{$p})
       {
