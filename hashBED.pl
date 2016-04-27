@@ -224,11 +224,102 @@ if ($RefCCDS)
 close CCDS;
 close CCDSGFF;
 }
-    
+print "$chr CCDS 2 hash over ...\n\n";
+########--------------End-----------------########
 
+########--------------Start-----------------########
+if($RefCCDS)
+{       open CCDSSTAT,">$CCDSStatFile" or die $!;
+        my $IDNum=keys %ID;
+        my $IDNum1=keys %TRID;
+        my $IDNum2=keys %ReadID;
+        my $GeneNum=keys %Gene;
+        my $GeneNum1=keys %TRGene;
+        my $GeneNum2=keys %ReadGene;
+	print CCDSSTAT "#Item\tTotalNum\tProbeCovNum\tReadCovNum\tDepth>=4x\tDepth>=10x\tDepth>=20x\n";
+    	print CCDSSTAT "$chr\_Exon\t$ExonCnt\t$TRExonCnt\t$ReadExonCnt\t$ccds4\t$ccds10\t$ccds20\n";
+	print CCDSSTAT "$chr\_Eon_ID\t$IDNum\t$IDNum1\t$IDNum2\t-\t-\t-\n";
+	print CCDSSTAT "$chr\_Gene\t$GeneNum\t$GeneNum1\t$GeneNum2\t-\t-\t-\n";
+	close CCDSSTAT;
+}
+########--------------End-----------------########
 
+# -------------------------------------- output depth ----------------------------------
 
+my ($TRCov,$FRCov,$TRBase)=(0,0,0);
+my (%TRDepthCnt,%FRDepthCnt,%TRCumDepthCnt,%FRCumDepthCnt);
+open TRD,"|gzip >$TRDepthFile" or die "Can not open $TRDepthFile\n";
+foreach my $k( sort {$a<=>$b} keys %TRpos )
+{	my $depth = $TRpos{$k};
+	$TRCov++ if($depth);
+	$TRDepthCnt{$depth}++;
+	$TRBase += $depth;
+	print TRD "$k\t$depth\n";
+}
+close TRD;
+my  $TRSize = scalar keys %TRpos;
+%TRpos=();
+my $TRMeanDepth = sprintf("%.2f",$TRBase/$TRSize);
+my $TRCoverage = sprintf("%.2f",100*$TRCov/$TRSize);
+my  ($TRCount,$TRMedianDepth)=(0,0);
+foreach (sort {$a<=>$b} keys %TRDepthCnt)
+{       $TRCount +=$TRDepthCnt{$_};
+	if($TRCount*2 >= $TRSize)
+	{	$TRMedianDepth=$_;	
+		last;
+	}
+}
 
+open FRD,"|gzip >$FRDepthFile" or die "Can not open $FRDepthFile\n";
+foreach my $k( sort {$a<=>$b} keys %FRpos)
+{	my $depth = $FRpos{$k};
+	$FRCov++ if($depth);
+	$FRDepthCnt{$depth} ++;
+	$FRBase += $depth;
+	print FRD "$k\t$depth\n";
+}
+close FRD;
+my  $FRSize = scalar keys %FRpos;
+%FRpos=();
+my $FRMeanDepth = sprintf("%.2f",$FRBase/$FRSize);
+my $FRCoverage = sprintf("%.2f",100*$FRCov/$FRSize);
+my  ($FRCount,$FRMedianDepth)=(0,0);
+foreach (sort {$a<=>$b} keys %FRDepthCnt)
+{       $FRCount +=$FRDepthCnt{$_};
+	if($FRCount*2 >= $FRSize)
+	{       $FRMedianDepth=$_;
+		last;
+	}
+}
 
-
-
+my $TRFRSize=$TRSize+$FRSize;
+open CUM,">$CumDepthFile" or die $!;
+print CUM "#Chr\tDepth\tTRCumDepthCnt\tFRCumDepthCnt\tTRFRCumDepthCnt\n";
+$TRCumDepthCnt{0}+=$TRDepthCnt{$_} for (keys %TRDepthCnt);
+$FRCumDepthCnt{0}+=$FRDepthCnt{$_} for (keys %FRDepthCnt);
+my $TRFRCumDepthCnt=$TRCumDepthCnt{0}+$FRCumDepthCnt{0};
+print CUM "$chr\t0\t$TRCumDepthCnt{0}\t$FRCumDepthCnt{0}\t$TRFRCumDepthCnt\n";
+for(1..200)
+{	my $j=$_-1;
+	$TRDepthCnt{$j}=0 if (!exists $TRDepthCnt{$j}); #--------------------
+	$FRDepthCnt{$j}=0 if (!exists $FRDepthCnt{$j});  #--------------------
+	$TRCumDepthCnt{$_}=$TRCumDepthCnt{$j}-$TRDepthCnt{$j};	# cumulative depth;
+	$FRCumDepthCnt{$_}=$FRCumDepthCnt{$j}-$FRDepthCnt{$j};
+	$TRFRCumDepthCnt=$TRCumDepthCnt{$_}+$FRCumDepthCnt{$_};
+	print CUM "$chr\t$_\t$TRCumDepthCnt{$_}\t$FRCumDepthCnt{$_}\t$TRFRCumDepthCnt\n";
+}
+close CUM;
+open TRDC,">$TRDepthCntFile" or die $!;
+print TRDC "$_\t$TRDepthCnt{$_}\n" for (sort {$a<=>$b} keys %TRDepthCnt);
+close TRDC;
+open FRDC,">$FRDepthCntFile" or die $!;
+print FRDC "$_\t$FRDepthCnt{$_}\n" for (sort {$a<=>$b} keys %FRDepthCnt);
+close FRDC;
+(%TRDepthCnt,%FRDepthCnt,%TRCumDepthCnt,%FRCumDepthCnt)=((),(),(),());	 
+open TRDSTAT,">$TRDepthStatFile" or die $!;
+print TRDSTAT "#Item\tRegionSize\tReadNum\tUniqReadNum\tBaseNum\tUniqBaseNum\tCovPosNum\tCovrege\tMeanDepth\tMedianDepth\tMissNuM\tGCBaseNum\n";
+print  TRDSTAT "$chr\_Region\t-\t$ReadCnt\t$UReadCnt\t$Base\t$UBase\t-\t-\t-\t-\t$MissNum\t$GCBase\n";
+print  TRDSTAT "$chr\_TargetRegion\t$TRSize\t$TRReadCnt\t$UTRReadCnt\t$TRBase\t$UTRBase\t$TRCov\t$TRCoverage\t$TRMeanDepth\t$TRMedianDepth\t-\t-\n";
+print  TRDSTAT "$chr\_FlankRegion\t$FRSize\t$FRReadCnt\t$UFRReadCnt\t$FRBase\t$UFRBase\t$FRCov\t$FRMeanDepth\t$FRCoverage\t$FRMedianDepth\t-\t-\n";
+close  TRDSTAT;
+`date`;
