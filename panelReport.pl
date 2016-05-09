@@ -4,9 +4,9 @@ use strict;
 use File::Basename qw(dirname basename);
 use Getopt::Long;
 
-## prel $0 /path/to/sample.db /path/to/screen.configure /path/to/projectname /path/to/outputdir 3 CANONICAL
-my ($sampleDB, $screenConfig, $inputPath, $outputPath, $tools, $trans, $help) = ('', '', '', '', 1, 'CANONICAL', '');
-GetOptions(
+my ($sampleDB, $screenConfig, $inputPath, $outputPath, $tools, $trans, $help) = ('', '', '', '', '', '', '');
+GetOptions
+(
 	"sampleDB:s" => \$sampleDB,
 	"screenConfigure:s" => \$screenConfig,
 	"projectDir:s" => \$inputPath,
@@ -16,6 +16,8 @@ GetOptions(
 	"help:s" => \$help
 );
 
+$tools ||= 1;
+$trans ||= 'CANONICAL';
 my $usage=<<USAGE;
 usage:perl $0
   -samPleDB:		path to your sample.db.
@@ -28,10 +30,10 @@ usage:perl $0
 USAGE
 die $usage if (!$sampleDB || !$screenConfig || !$inputPath || !$outputPath || $help);
 
-`rm -r $outputPath` if -d "$outputPath";
-`mkdir -p $outputPath`;
+`mkdir -p $outputPath` unless -d "$outputPath";
 
-my @samplesID = readInSamples($sampleDB);
+#------------------------Combine results
+my @samplesID = readInSamples($sampleDB); @samplesID = sort @samplesID;
 my @functionalElements = readInScreen($screenConfig);
 foreach my $sampleID (@samplesID)
 {
@@ -40,25 +42,29 @@ foreach my $sampleID (@samplesID)
 	getAlignment($sampleID, $inputPath, $outputPath);
 	getVCF($sampleID, $inputPath, $outputPath, $tools, \@functionalElements, $trans);
 }
-
-my $allSamples = `ls $outputPath`;
-@samplesID = split /\n/, $allSamples;
-@samplesID = grep (!/Items/, @samplesID);
-
-open OUT, ">$outputPath/sampleInfo";
-foreach $_(@samplesID)
-{
-	my @out = (split /\t/, `grep $_ $sampleDB`)[0, 1, 3, 4, 5, 8, 9, 11, 12];
-	my $out = join("\t", @out);
-	print OUT $out."\n";
-}
-close OUT;
+combination("QC", $outputPath);
+combination("alignment", $outputPath);
 combination("snp", $outputPath);
 combination("indel", $outputPath);
-combination("alignment", $outputPath);
+getSampleInfo($outputPath, \@samplesID);
+cleanUp("snp", $outputPath);	#discard features that are all zero;
+cleanUp("indel", $outputPath);
+
+#------------------------Prepare html components
+my $numInLine = 3;
+my $tablesNum;
+if((@samplesID) % ($numInLine) == 0){$tablesNum = @samplesID / $numInLine;}
+else{$tablesNum = (int(@samplesID / $numInLine) + 1);}
+
+my $sampleInfo = html_sub("sampleInfo", $outputPath, $tablesNum);
+my $ReadsInfo = html_sub("QCResult", $outputPath, $tablesNum);
+my $AlignmentResults = html_sub("alignmentResult", $outputPath, $tablesNum);
+my $snpResults = html_sub("snpResult", $outputPath, $tablesNum);
+my $indelResults = html_sub("indelResult", $outputPath, $tablesNum);
+my $distribution = distributionHTML($outputPath, \@samplesID);
 
 #------------------------Make up html file
-my $html=<<HTMLCODE;
+my $html = <<HTMLCODE;
 <!DOCTYPE html>
 <html>
 
@@ -175,14 +181,15 @@ my $html=<<HTMLCODE;
 						</ul>
 					<li style="margin-top:12px; list-style-type:none;"> <a href="#mark2">Project Results</a> </li>
 						<ul>
-							<li style=" margin-top:7px; list-style-type:none;"><a href="#AlignmentResults">1. Alignment Results</a></li>
-							<li style=" margin-top:7px; list-style-type:none;"><a href="#SequencingDepthDistribution">2. Sequencing Depth Distribution</a></li>
-							<li style=" margin-top:7px; list-style-type:none;"><a href="#snpResults">3. SNP Results</a></li>
-                        	<li style=" margin-top:7px; list-style-type:none;"><a href="#indelResults">4. INDEL Results</a></li>
+							<li style=" margin-top:7px; list-style-type:none;"><a href="#ReadsInfo">1. Reads Information</a></li>
+							<li style=" margin-top:7px; list-style-type:none;"><a href="#AlignmentResults">2. Alignment Results</a></li>
+							<li style=" margin-top:7px; list-style-type:none;"><a href="#SequencingDepthDistribution">3. Sequencing Depth Distribution</a></li>
+							<li style=" margin-top:7px; list-style-type:none;"><a href="#snpResults">4. SNP Results</a></li>
+                        	<li style=" margin-top:7px; list-style-type:none;"><a href="#indelResults">5. INDEL Results</a></li>
 						</ul>
 					<li style="margin-top:12px; list-style-type:none;"> <a href="#mark3">Notes on Analyzing Methods</a> </li>
 						<ul>
-							<li style=" margin-top:7px; list-style-type:none;"><a href="#MethodsAndParameters">1. Brief description of bioinformatics methods and parameters<a></li>
+							<li style=" margin-top:7px; list-style-type:none;"><a href="#MethodsAndParameters">1. Brief description of bioinformatics methods and parameters</a></li>
 							<li style=" margin-top:7px; list-style-type:none;"><a href="#Databases">2. Databases</a></li>
 							<li style=" margin-top:7px; list-style-type:none;"><a href="#FileFormat">3. File format</a></li>
 						</ul>
@@ -203,10 +210,169 @@ my $html=<<HTMLCODE;
 <div>
 	<div id="mark0"></div><hr /><h3> Sample Information </h3><hr />
 	<h4></h4>
-	<table border="1" cellpdding="5" cellspacing="0" bordercolordark="#DCDCDC" align="center">
+<!--	<table border="1" cellpdding="5" cellspacing="0" bordercolordark="#DCDCDC" align="center"> -->
+		$sampleInfo
+	<br />
+</div>
+
+<div>
+	<div id="mark2"> </div><hr /><h3>Project Results</h3><hr />
+		<div class='row-fluid accordion-heading'>
+			<div id="ReadsInfo"></div>
+			<div class='span11'> <h4>1. Reads information</h4> </div>
+		</div>	<!-- <div class='row-fluid accordion-heading'> -->
+			<div class='accordion-inner'>
+			$ReadsInfo
+			</div><br />
+
+		<div class='row-fluid accordion-heading'>
+			<div id="AlignmentResults"></div>
+			<div class='span11'> <h4>2. Alignment Results</h4> </div>
+		</div>
+			<div class='accordion-inner'>
+			$AlignmentResults
+			</div><br />
+
+		<div class='row-fluid accordion-heading'>
+			<div id="SequencingDepthDistribution"></div>
+			<div class='span11'> <h4>3. Sequencing Depth Distribution</h4> </div>
+		</div>
+			<div class='accordion-inner'>
+			$distribution
+			</div><br />
+
+		<div class='row-fluid accordion-heading'>
+			<div id="snpResults"></div>
+			<div class='span11'> <h4>4. SNP Results</h4> </div>
+		</div>
+			<div class='accordion-inner'>
+			$snpResults
+			</div><br />
+
+		<div class='row-fluid accordion-heading'>
+			<div id="indelResults"></div>
+			<div class='span11'> <h4>5. INDEL Results</h4> </div>
+		</div>
+			<div class='accordion-inner'>
+			$indelResults
+			</div><br />
+</div>
+
+
+<!-- the following </div> is for the main column -->
+</div>
+<!-- the following </div> is for both side and main column -->
+</div>
+</div>
 HTMLCODE
 
-#----------------------------------------------------------------------------
+open OUThtml, ">$outputPath/Panel_Report.html";
+print OUThtml $html;
+close OUThtml;
+
+#------------------------sub methods
+sub html_sub
+{
+    my ($searchFile, $outputPath, $tablesNum) = @_;	
+	my @tables = ();
+	open IN, "$outputPath/$searchFile";
+	while (<IN>)
+	{
+		chomp;
+		my @items = split /\t/;
+		for my $key(1..$tablesNum)
+		{
+			$tables[$key] .= "<tr><td width = '295' align = 'left'>&nbsp;$items[0]</td>";
+			if($numInLine * $key <= $#items)
+			{
+				map {$tables[$key] .= "<td width = '145' align = 'center'>$items[$_]</td>";}
+				($numInLine * ($key-1) + 1)..($numInLine * $key)
+			}
+			else
+			{
+				map {$tables[$key] .= "<td width = '145' align = 'center'>$items[$_]</td>";}
+				($numInLine * ($key-1) + 1)..$#items
+			}
+			$tables[$key] .= "</tr>";
+		}
+	}
+	close IN;
+	my $html_sub = '';
+	for (1 .. $#tables)
+	{
+		$html_sub .= "<h5></h5><table border = '1' cellpdding = '2' cellspacing = '0' bordercolordark = '#DCDCDC' align = 'center'>".$tables[$_]."</table><br />";
+	}
+	return $html_sub;
+}
+
+sub distributionHTML
+{
+	my ($outputPath, $samplesID) = @_;
+	my $html_sub = "<table align = 'center' cellpadding = '5'>";
+	my @samplesID2 = @{$samplesID};
+	my $sampleNum = @samplesID2;
+	my $totalLines = $sampleNum * 2;
+	foreach my $line (0 .. $totalLines)
+	{
+		if ($line == 0)
+        {
+			$html_sub .= "<tr><th width = '360' align= 'center'>Histogram of depth distribution in Target Regions</th><th width = '360' align = 'center'>Evenness of exome capture sequencing</th></tr>";
+        }
+		if ($line % 2 > 0)
+        {
+			my $index = int ($line / 2);
+			$html_sub .= <<html_sub;
+<tr>
+    <td><span style = 'width:350px;display:block;'><img src = './$samplesID2[$index]/histPlot.png' alt = '$samplesID2[$index] histPlot' /></span></td>
+    <td><span style = 'width:350px;display:block;'><img src = './$samplesID2[$index]/cumuPlot.png' alt = '$samplesID2[$index] cumuPlot' /></span></td>
+</tr>
+html_sub
+		}
+        if (($line > 0) && ($line % 2 == 0))
+        {
+                my $index = ($line / 2) - 1;
+				$html_sub .= <<html_sub;
+<tr>
+<td colspan = '3' align = 'center'> Sequencing Depth distribution for sample <b><i>$samplesID2[$index]</i></b></td>
+</tr>
+html_sub
+		}
+	}
+	$html_sub .= '</table>';
+	return $html_sub;
+}
+
+sub getSampleInfo
+{
+	my ($outputPath, $samplesID) = @_;
+	my @samplesID = (@{$samplesID});
+	open OUT, ">$outputPath/sampleInfo";
+	my $count = 0;
+	my %out = ();
+	my @items = ('SampleID', 'FamlilyID', 'Gender', 'Age', 'Population',
+					'Disease', 'CaseOrControl', 'CaptureChip', 'Platform');
+	$out{$count} = \@items;
+	foreach $_(@samplesID)
+	{
+		$count += 1;
+    	my @out = (split /\t/, `grep $_ $sampleDB`)[1, 0, 3, 4, 5, 8, 9, 11, 12];
+		$out{$count} = \@out;
+	}
+	my @newItems = ();
+	my $newItems = '';
+	for $_(0 .. 8)
+	{
+		@newItems = ();
+		for my $j (0 .. @samplesID)
+		{
+			push @newItems, ${$out{$j}}[$_];
+		}
+		$newItems = join ("\t", @newItems);
+		print OUT $newItems."\n";
+	}
+	close OUT;
+}
+
 sub combination
 {
 	my ($searchFile, $outputPath) = @_;
@@ -216,8 +382,34 @@ sub combination
 	my $itemFile = $searchFile."Items";
 	my $resultFile = $searchFile."Result";
 	`paste $outputPath/$itemFile $allFile >	$outputPath/$resultFile`;
-	#`rm $allFile`;
+	`rm $allFile $outputPath/$itemFile`;
 }
+
+sub cleanUp
+{
+	my ($name, $outputPath) = @_;
+	$name = $name."Result";
+	open IN, "$outputPath/$name";
+	my $out = '';
+	while (<IN>)
+	{
+		chomp;
+		my @items = split /\t/;
+		my $mark = 0;
+		A: foreach my $i(1 .. $#items)
+		{
+			next if ($items[$i] eq '0');
+			$mark = 1;
+			last A;
+		}
+		if ($mark == 1){$out .= $_."\n";}
+	}
+	close IN;
+	open OUT, ">$outputPath/$name";
+	chomp $out;
+	print OUT $out;
+	close OUT;
+}	
 
 sub getQC
 {
@@ -225,31 +417,43 @@ sub getQC
 	my $sampleDir = "$inputPath/$sampleID";
 	my $outputDir = "$outputPath/$sampleID";
 
-	open OUT, ">$outputDir/QC";
 	my $fqc1 = `find $sampleDir/*/lane/*/1.cleanFQ/SOAPnuke/pe_1.fq_fastqc/ -name fastqc_data.txt`;
 	my $fqc1Result = `grep '>>' $fqc1`;
 	my @fqc1Result = split /\n/, $fqc1Result;
+	my %hash = ();
+	my @items = ();
+
 	foreach $_(@fqc1Result)
 	{
-		next if ($_ =~ /END_MODULE/);
+		next if ($_ =~ /END_MODULE/ or $_ =~ /Basic Statistics/);
 		$_ =~ s/>>//;
-		print OUT $_."\n";
+		my ($k, $v) = split /\t/;
+		$hash{$k} = $v;
+		push @items, $k
 	}
-	close OUT;
+	unless (-e "$outputPath/QCItems")
+	{
+		open OUT, ">$outputPath/QCItems";
+		print OUT "Features\n";
+		foreach my $item(@items){print OUT $item."\n";}
+		close OUT;
+	}
 
-
-	open OUT, ">>$outputDir/QC";
-	print OUT "\n\n";
+	open OUT, ">$outputDir/QC";
+	print OUT "$sampleID\n";
 	my $fqc2 = `find $sampleDir/*/lane/*/1.cleanFQ/SOAPnuke/pe_2.fq_fastqc/ -name fastqc_data.txt`;
 	my $fqc2Result = `grep '>>' $fqc2`;
 	my @fqc2Result = split /\n/, $fqc2Result;
 	foreach $_(@fqc2Result)
 	{
-		next if ($_ =~ /END_MODULE/);
+		next if ($_ =~ /END_MODULE/ or $_ =~ /Basic Statistics/);
 		$_ =~ s/>>//;
-		print OUT $_."\n";
+		my ($k, $v) = split /\t/;
+		$hash{$k} = ucfirst($hash{$k})." | ".ucfirst($v) if defined $hash{$k};
+		print OUT $hash{$k}."\n";
 	}
 	close OUT;
+	
 }
 
 sub getAlignment
@@ -259,13 +463,18 @@ sub getAlignment
 	my $outputDir = "$outputPath/$sampleID";
 	my $figures = `find $sampleDir/*/sample/1.alignment/BAM_Stat/ -name *.png`;
 	my @figures = split /\n/, $figures;
-	foreach my $figure (@figures){`cp $figure $outputDir/`;}
+	map {`cp $_ $outputDir/`;} @figures;
 
 	my $alignment = `find $sampleDir/*/sample/1.alignment/BAM_Stat/ -name information.xls`;
 	chomp $alignment;
-	`awk -F "\t" '{print \$2}' $alignment > $outputDir/alignment`;
+	open IN, ">$outputDir/alignment"; print IN "$sampleID\n"; close IN;
+	`awk -F "\t" 'NR > 1{print \$2}' $alignment >> $outputDir/alignment`;
 	unless (-e "$outputPath/alignmentItems")
-	{`awk -F "\t" '{print \$1}' $alignment >$outputPath/alignmentItems`;}
+	{
+		open OUT, ">$outputDir/alignmentItems";
+		print OUT "Features\n"; close OUT;
+		`awk -F "\t" '{print \$1}' $alignment >>$outputPath/alignmentItems`;
+	}
 }
 
 sub getVCF
@@ -343,6 +552,7 @@ sub getVCF
 	my $TR_TiTv = sprintf ("%.2f", $TiTR/$TvTR);
 	my $elements = join("\n", @SNP);	
 	my $snpResult = <<snpResult;
+$sampleID
 $snp
 $snpTR
 $snpHomo
@@ -360,6 +570,7 @@ snpResult
 	my $indelTR = $indelHomoTR + $indelHetTR;
 	$elements = join("\n", @INDEL);
 	my $indelResult = <<indelResult;
+$sampleID
 $indel
 $indelTR
 $indelHomo
@@ -377,6 +588,7 @@ indelResult
 		open OUT, ">$outputPath/snpItems";
 		my $elements = join ("\n", @{$functionalElements});
 		my $snpItems = <<snpItems;
+Features
 Total number of SNPs
 Number of SNPs in Target Regions
 Number of Homozygous SNPs
@@ -396,6 +608,7 @@ snpItems
 		open OUT, ">$outputPath/indelItems";
 		my $elements = join ("\n", @{$functionalElements});
 		my $indelItems = <<indelItems;
+Features
 Total number of INDELs
 Number of INDELs in Target Regions
 Number of Homozygous INDELs
@@ -476,3 +689,10 @@ sub readInSamples
 	close IN;
 	return @sampleID;
 }
+
+`rm $outputPath/*Result $outputPath/sampleInfo`;
+my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)=localtime(time);
+$year=$year+1900;
+$mon=$mon+1;
+my $date = "$year-$mon-$mday";
+
