@@ -2,7 +2,8 @@
 use strict;
 use FindBin qw($Bin);
 
-die "Usage:\nperl $0 <in|hg19_refGene.20110731.txt.gz> <out|refGene.1.gff> <outDir|refSeqByChr>\nFor Example:\nperl $0 $Bin/hg19_refGene.20110731.txt.gz $Bin/refGene.1.gff $Bin/refSeqByChr\n" unless @ARGV==3;
+die "Usage:\nperl $0 <in|hg19_refGene.20110731.txt.gz> <out|refGene.1.gff> <outDir|refSeqByChr>\n/
+For Example:\nperl $0 $Bin/hg19_refGene.20110731.txt.gz $Bin/refGene.1.gff $Bin/refSeqByChr\n" unless @ARGV==3;
 
 my ($refseq,$out,$refSeqByChr)=@ARGV[0,1,2];
 
