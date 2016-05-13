@@ -2,7 +2,7 @@
 use strict;
 use FindBin qw($Bin);
 
-die "Usage:\nperl $0 <in|hg19_refGene.20110731.txt.gz> <out|refGene.1.gff> <outDir|refSeqByChr>\n/
+die "Usage:\nperl $0 <in|hg19_refGene.20110731.txt.gz> <out|refGene.1.gff> <outDir|refSeqByChr>\n
 For Example:\nperl $0 $Bin/hg19_refGene.20110731.txt.gz $Bin/refGene.1.gff $Bin/refSeqByChr\n" unless @ARGV==3;
 
 my ($refseq,$out,$refSeqByChr)=@ARGV[0,1,2];
@@ -21,11 +21,7 @@ open IN,"gunzip -cd <$refseq|" or die $! if $refseq=~/\.gz$/;
 while(<IN>)
 {
 	chomp;
-	###########shenyulan@genomics.cn##############
-
 	next unless $_ !~/incmpl/;
-
-	#############################################
 	my ($ID,$chr,$strand,$mRNAsta,$mRNAend,$cds_st,$cds_ed,$exon_sts,$exon_eds,$geneName,$phases,$exonCount)=(split /\t/)[1,2,3,4,5,6,7,9,10,12,-1,8];
 	next unless $chr=~/^chr\d+$/ || $chr=~/^chr[XY]$/;
 	my @exon_st=split /,/,$exon_sts;
