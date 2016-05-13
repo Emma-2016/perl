@@ -624,7 +624,19 @@ sub getcsq
 {
 	my ($vep, $trans) = @_;
 	my @str = (split /,/, $vep);
-	my %impact = ('transcript_ablation' => 4, 'splice_acceptor_variant' => 4, 'splice_donor_variant' => 4, 'stop_gained' => 4, 'frameshift_variant' => 4, 'stop_lost' => 4, 'start_lost' => 4, 'transcript_amplification' => 4, 'inframe_insertion' => 3, 'inframe_deletion' => 3, 'missense_variant' => 3, 'protein_altering_variant' => 3, 'splice_region_variant' => 2, 'incomplete_terminal_codon_variant' => 2, 'stop_retained_variant' => 2, 'synonymous_variant' => 2, 'coding_sequence_variant' => 1, 'mature_miRNA_variant' => 1, '5_prime_UTR_variant' => 1, '3_prime_UTR_variant' => 1, 'non_coding_transcript_exon_variant' => 1, 'intron_variant' => 1, 'NMD_transcript_variant' => 1, 'non_coding_transcript_variant' => 1, 'upstream_gene_variant' => 1, 'downstream_gene_variant' => 1, 'TFBS_ablation' => 1, 'TFBS_amplification' => 1, 'TF_binding_site_variant' => 1, 'regulatory_region_ablation' => 3, 'regulatory_region_amplification' => 1, 'feature_elongation' => 1, 'regulatory_region_variant' => 1, 'feature_truncation' => 1, 'intergenic_variant' => 1);
+	my %impact = (
+	'transcript_ablation' => 4, 'splice_acceptor_variant' => 4, 'splice_donor_variant' => 4, 
+	'stop_gained' => 4, 'frameshift_variant' => 4, 'stop_lost' => 4, 'start_lost' => 4, 
+	'transcript_amplification' => 4, 'inframe_insertion' => 3, 'inframe_deletion' => 3, 
+	'missense_variant' => 3, 'protein_altering_variant' => 3, 'splice_region_variant' => 2, 
+	'incomplete_terminal_codon_variant' => 2, 'stop_retained_variant' => 2, 'synonymous_variant' => 2, 
+	'coding_sequence_variant' => 1, 'mature_miRNA_variant' => 1, '5_prime_UTR_variant' => 1, 
+	'3_prime_UTR_variant' => 1, 'non_coding_transcript_exon_variant' => 1, 'intron_variant' => 1, 
+	'NMD_transcript_variant' => 1, 'non_coding_transcript_variant' => 1, 'upstream_gene_variant' => 1, 
+	'downstream_gene_variant' => 1, 'TFBS_ablation' => 1, 'TFBS_amplification' => 1, 'TF_binding_site_variant' => 1, 
+	'regulatory_region_ablation' => 3, 'regulatory_region_amplification' => 1, 'feature_elongation' => 1, 
+	'regulatory_region_variant' => 1, 'feature_truncation' => 1, 'intergenic_variant' => 1
+	);
 
 	if ($trans =~ /CANONICAL/i)
 	{
